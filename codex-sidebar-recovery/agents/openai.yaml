@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex 侧栏项目恢复"
+  short_description: "恢复 Codex 丢失的项目列表和会话归类，支持安全备份与退出后恢复"
+  default_prompt: "使用 $codex-sidebar-recovery 排查项目消失、会话未归类的问题，并在备份和预演后完成恢复。"

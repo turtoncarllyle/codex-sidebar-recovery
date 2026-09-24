@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.validation/
+backups/
+work/
+snapshot-*/
+*.sqlite*
+*.db*
+*.jsonl
+.codex-global-state.json*
+candidate-global-state.json
+plan.json
+status.json
+worker.lock
+CANCEL
