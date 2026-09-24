@@ -13,4 +13,5 @@ candidate-global-state.json
 plan.json
 status.json
 worker.lock
+launch-label
 CANCEL

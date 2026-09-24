@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
         python: ['3.10', '3.13']
     steps:
       - uses: actions/checkout@v4
@@ -33,5 +33,9 @@ jobs:
             (Join-Path $PWD 'codex-sidebar-recovery\scripts\Start-DetachedRecovery.ps1'),
             [ref]$tokens, [ref]$parseErrors)
           if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+      - name: Validate macOS launcher syntax
+        if: runner.os == 'macOS'
+        shell: bash
+        run: sh -n codex-sidebar-recovery/scripts/start-detached-recovery.sh
       - name: Check whitespace
         run: git diff --check

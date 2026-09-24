@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import subprocess
 import sys
 import time
 import uuid
@@ -52,8 +53,30 @@ def encode(value):
 
 
 def active_clients():
+    names = {"chatgpt", "codex", "chatgpt.exe", "codex.exe"}
     if os.name != "nt":
-        raise RecoveryError("Applying or waiting is supported on Windows only")
+        try:
+            result = subprocess.run(
+                ["ps", "-axo", "pid=,comm="],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise RecoveryError("Cannot inspect Codex/ChatGPT processes with ps") from exc
+        clients = []
+        for line in result.stdout.splitlines():
+            parts = line.strip().split(None, 1)
+            if len(parts) != 2:
+                continue
+            try:
+                pid = int(parts[0])
+            except ValueError:
+                continue
+            executable = Path(parts[1].strip()).name.lower()
+            if executable in names:
+                clients.append({"pid": pid, "name": parts[1].strip()})
+        return sorted(clients, key=lambda item: item["pid"])
 
     class ProcessEntry(ctypes.Structure):
         _fields_ = [
@@ -82,7 +105,7 @@ def active_clients():
         entry.dwSize = ctypes.sizeof(entry)
         ok = kernel.Process32FirstW(handle, ctypes.byref(entry))
         while ok:
-            if entry.szExeFile.lower() in {"chatgpt.exe", "codex.exe"}:
+            if entry.szExeFile.lower() in names:
                 clients.append({"pid": entry.th32ProcessID, "name": entry.szExeFile})
             ok = kernel.Process32NextW(handle, ctypes.byref(entry))
         error = ctypes.get_last_error()
@@ -308,20 +331,29 @@ def apply_recovery(home, logical_home, output, host_key=None):
 
 @contextmanager
 def worker_lock(output):
-    if os.name != "nt":
-        raise RecoveryError("Detached recovery is supported on Windows only")
-    import msvcrt
     with (output / "worker.lock").open("a+b") as handle:
-        handle.seek(0)
-        try:
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-        except OSError as exc:
-            raise WorkerBusy("Another recovery worker owns this output directory") from exc
-        try:
-            yield
-        finally:
+        if os.name == "nt":
+            import msvcrt
             handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                raise WorkerBusy("Another recovery worker owns this output directory") from exc
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError as exc:
+                raise WorkerBusy("Another recovery worker owns this output directory") from exc
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def wait_for_exit(home, logical_home, output, host_key, timeout_hours, app_id):
@@ -372,6 +404,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.restart_app_id and (not args.wait or not re.fullmatch(r"[A-Za-z0-9_.]+![A-Za-z0-9_.]+", args.restart_app_id)):
         parser.error("--restart-app-id requires --wait and a verified Store AppID")
+    if args.restart_app_id and os.name != "nt":
+        parser.error("--restart-app-id is supported on Windows only")
     if not 0 < args.timeout_hours <= 24:
         parser.error("--timeout-hours must be greater than zero and at most 24")
     output = args.output_dir.absolute().resolve()

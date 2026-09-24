@@ -13,6 +13,7 @@ import sys
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -359,6 +360,29 @@ class ProfileTests(unittest.TestCase):
             with self.assertRaises(r.WorkerBusy):
                 with r.worker_lock(self.output):
                     self.fail("second worker acquired an exclusive lock")
+
+    @unittest.skipUnless(os.name != "nt", "POSIX process enumeration")
+    def test_posix_process_parser_matches_app_bundle_names(self):
+        ps_output = """
+        101 /Applications/Codex.app/Contents/MacOS/Codex
+        102 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT
+        103 /usr/bin/python3
+        104 /Applications/Other.app/Contents/MacOS/CodexHelper
+        """
+        with patch.object(r.subprocess, "run", return_value=SimpleNamespace(stdout=ps_output)) as run:
+            self.assertEqual(r.active_clients(), [
+                {"pid": 101, "name": "/Applications/Codex.app/Contents/MacOS/Codex"},
+                {"pid": 102, "name": "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT"},
+            ])
+        run.assert_called_once_with(
+            ["ps", "-axo", "pid=,comm="], check=True, capture_output=True, text=True)
+
+    @unittest.skipUnless(os.name != "nt", "POSIX file locking")
+    def test_posix_worker_lock_is_exclusive(self):
+        with r.worker_lock(self.output):
+            with self.assertRaises(r.WorkerBusy):
+                with r.worker_lock(self.output):
+                    self.fail("second POSIX worker acquired an exclusive lock")
 
     @unittest.skipUnless(os.name == "nt" and os.environ.get("RUN_WMI_TEST") == "1",
                          "Opt-in WMI handoff smoke test; requires a running Codex client")

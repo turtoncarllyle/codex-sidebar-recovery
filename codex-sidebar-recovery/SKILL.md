@@ -1,6 +1,6 @@
 ---
 name: codex-sidebar-recovery
-description: "Diagnose and recover missing Codex desktop sidebar projects and ungrouped local threads when their SQLite project records still exist. Includes Windows recovery that waits for the running app to exit without terminating it."
+description: "Diagnose and recover missing Codex desktop sidebar projects and ungrouped local threads when their SQLite project records still exist. Supports Windows and macOS recovery that waits for the running app to exit without terminating it."
 ---
 
 # Codex Sidebar Recovery
@@ -18,7 +18,7 @@ description: "Diagnose and recover missing Codex desktop sidebar projects and un
 
 ## 使用恢复工具
 
-`scripts\recover_sidebar.py` 需要 Python 3.10+，仅使用标准库。实际恢复与进程等待支持 Windows；规划和隔离测试可跨平台运行。
+`scripts\recover_sidebar.py` 需要 Python 3.10+，仅使用标准库。实际恢复与进程等待支持 Windows 和 macOS；规划和隔离测试可在其他 POSIX 环境运行。
 
 ```powershell
 python -B .\scripts\recover_sidebar.py --codex-home "$env:USERPROFILE\.codex" --output-dir "$env:USERPROFILE\.codex\backups\sidebar-recovery-run" --preview
@@ -35,7 +35,7 @@ python -B .\scripts\recover_sidebar.py --codex-home "$env:USERPROFILE\.codex" --
 
 当前助手可能就在故障应用内执行。该版本会将内存中的全局状态持续写回磁盘，因此“直接改 JSON 再刷新”可能被覆盖。
 
-完成已授权的预演和备份后，使用 [退出后恢复操作](references/windows-handoff.md) 中的独立等待程序。它通过 Windows WMI 启动，父进程不属于 Codex；用进程信息和 `status.json` 验证启动确实成功，再请用户自然退出应用。
+完成已授权的预演和备份后，使用 [退出后恢复操作](references/desktop-handoff.md) 中对应系统的独立等待程序。Windows 使用 WMI，macOS 使用 `launchd`；用进程父子关系和 `status.json` 验证启动确实成功，再请用户自然退出应用。
 
 不要结束桌面应用或当前助手进程，不使用常驻轮询反复覆盖配置，不为了写入而移除文件保护。若独立启动不可用，交付已验证的离线命令，让用户退出后执行，并明确尚未应用。
 
